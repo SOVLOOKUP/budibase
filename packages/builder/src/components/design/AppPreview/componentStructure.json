@@ -12,6 +12,7 @@
       "fieldgroup",
       "stringfield",
       "numberfield",
+      "passwordfield",
       "optionsfield",
       "booleanfield",
       "longformfield",
@@ -50,6 +51,7 @@
       "heading",
       "text",
       "image",
+      "backgroundimage",
       "link",
       "icon",
       "embed"

@@ -1,6 +1,6 @@
 <script>
   import { goto, beforeUrlChange } from "@sveltech/routify"
-  import { Button, Heading, Body, Spacer, Icon } from "@budibase/bbui"
+  import { Button, Heading, Body, Spacer } from "@budibase/bbui"
   import { backendUiStore } from "builderStore"
   import { notifier } from "builderStore/store/notifications"
   import IntegrationConfigForm from "components/backend/DatasourceNavigator/TableIntegrationMenu/IntegrationConfigForm.svelte"
@@ -133,11 +133,6 @@
   .container {
     border-radius: var(--border-radius-m);
     margin: 0 auto;
-  }
-
-  h5 {
-    margin: 0 !important;
-    font-size: var(--font-size-l);
   }
 
   .query-header {

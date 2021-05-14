@@ -1,66 +1,45 @@
-const { 
-  createApplication,
-  createTable,
-  supertest,
-  defaultHeaders,
-  createLinkedTable,
-  createAttachmentTable,
-  makeBasicRow,
-} = require("./couchTestUtils");
 const { outputProcessing } = require("../../../utilities/rowProcessor")
 const env = require("../../../environment")
+const { basicRow } = require("./utilities/structures")
+const setup = require("./utilities")
 
 describe("/rows", () => {
-  let request
-  let server
-  let appId
+  let request = setup.getRequest()
+  let config = setup.getConfig()
   let table
   let row
-  let app
 
-  beforeAll(async () => {
-    ({ request, server } = await supertest())
-
-  });
-
-  afterAll(() => {
-    server.close()
-  })
+  afterAll(setup.afterAll)
 
   beforeEach(async () => {
-    app = await createApplication(request)
-    appId = app.instance._id
-    table = await createTable(request, appId)
-    row = makeBasicRow(table._id)
+    await config.init()
+    table = await config.createTable()
+    row = basicRow(table._id)
   })
 
-  const createRow = async r => 
-    await request
-      .post(`/api/${r ? r.tableId : row.tableId}/rows`)
-      .send(r || row)
-      .set(defaultHeaders(appId))
-      .expect('Content-Type', /json/)
-      .expect(200)
-
-  const loadRow = async id => 
+  const loadRow = async (id, status = 200) =>
     await request
       .get(`/api/${table._id}/rows/${id}`)
-      .set(defaultHeaders(appId))
+      .set(config.defaultHeaders())
       .expect('Content-Type', /json/)
-      .expect(200)
+      .expect(status)
 
 
-  describe("save, load, update, delete", () => {
+  describe("save, load, update", () => {
     it("returns a success message when the row is created", async () => {
-      const res = await createRow()
+      const res = await request
+        .post(`/api/${row.tableId}/rows`)
+        .send(row)
+        .set(config.defaultHeaders())
+        .expect('Content-Type', /json/)
+        .expect(200)
       expect(res.res.statusMessage).toEqual(`${table.name} saved successfully`)
       expect(res.body.name).toEqual("Test Contact")
       expect(res.body._rev).toBeDefined()
     })
 
     it("updates a row successfully", async () => {
-      const rec = await createRow()
-      const existing = rec.body
+      const existing = await config.createRow()
 
       const res = await request
         .post(`/api/${table._id}/rows`)
@@ -70,7 +49,7 @@ describe("/rows", () => {
           tableId: table._id,
           name: "Updated Name",
         })
-        .set(defaultHeaders(appId))
+        .set(config.defaultHeaders())
         .expect('Content-Type', /json/)
         .expect(200)
       
@@ -79,12 +58,11 @@ describe("/rows", () => {
     })
 
     it("should load a row", async () => {
-      const rec = await createRow()
-      const existing = rec.body
+      const existing = await config.createRow()
 
       const res = await request
         .get(`/api/${table._id}/rows/${existing._id}`)
-        .set(defaultHeaders(appId))
+        .set(config.defaultHeaders())
         .expect('Content-Type', /json/)
         .expect(200)
 
@@ -102,12 +80,12 @@ describe("/rows", () => {
         name: "Second Contact",
         status: "new"
       }
-      await createRow()
-      await createRow(newRow)
+      await config.createRow()
+      await config.createRow(newRow)
 
       const res = await request
         .get(`/api/${table._id}/rows`)
-        .set(defaultHeaders(appId))
+        .set(config.defaultHeaders())
         .expect('Content-Type', /json/)
         .expect(200)
 
@@ -117,10 +95,10 @@ describe("/rows", () => {
     })
 
     it("load should return 404 when row does not exist", async () => {
-      await createRow()
+      await config.createRow()
       await request
         .get(`/api/${table._id}/rows/not-a-valid-id`)
-        .set(defaultHeaders(appId))
+        .set(config.defaultHeaders())
         .expect('Content-Type', /json/)
         .expect(404)
     })
@@ -132,7 +110,7 @@ describe("/rows", () => {
       const number = {type:"number", constraints: { type: "number", presence: false }}
       const datetime = {type:"datetime", constraints: { type: "string", presence: false, datetime: {earliest:"", latest: ""}  }}
 
-      table = await createTable(request, appId, {
+      table = await config.createTable({
         name: "TestTable2",
         type: "table",
         key: "name",
@@ -187,7 +165,7 @@ describe("/rows", () => {
         attachmentEmpty : "",
       }
 
-      const id = (await createRow(row)).body._id
+      const id = (await config.createRow(row))._id
 
       const saved = (await loadRow(id)).body
 
@@ -217,8 +195,7 @@ describe("/rows", () => {
 
   describe("patch", () => {
     it("should update only the fields that are supplied", async () => {
-      const rec = await createRow()
-      const existing = rec.body
+      const existing = await config.createRow()
 
       const res = await request
         .patch(`/api/${table._id}/rows/${existing._id}`)
@@ -228,7 +205,7 @@ describe("/rows", () => {
           tableId: table._id,
           name: "Updated Name",
         })
-        .set(defaultHeaders(appId))
+        .set(config.defaultHeaders())
         .expect('Content-Type', /json/)
         .expect(200)
       
@@ -240,74 +217,204 @@ describe("/rows", () => {
 
       expect(savedRow.body.description).toEqual(existing.description)
       expect(savedRow.body.name).toEqual("Updated Name")
-        
+    })
+
+    it("should throw an error when given improper types", async () => {
+      const existing = await config.createRow()
+      await request
+        .patch(`/api/${table._id}/rows/${existing._id}`)
+        .send({
+          _id: existing._id,
+          _rev: existing._rev,
+          tableId: table._id,
+          name: 1,
+        })
+        .set(config.defaultHeaders())
+        .expect(400)
+    })
+  })
+
+  describe("destroy", () => {
+    it("should be able to delete a row", async () => {
+      const createdRow = await config.createRow(row)
+      const res = await request
+        .delete(`/api/${table._id}/rows/${createdRow._id}/${createdRow._rev}`)
+        .set(config.defaultHeaders())
+        .expect('Content-Type', /json/)
+        .expect(200)
+      expect(res.body.ok).toEqual(true)
+    })
+
+    it("shouldn't allow deleting a row in a table which is different to the one the row was created on", async () => {
+      const createdRow = await config.createRow(row)
+      await request
+        .delete(`/api/wrong_table/rows/${createdRow._id}/${createdRow._rev}`)
+        .set(config.defaultHeaders())
+        .expect(400)
     })
   })
 
   describe("validate", () => {
     it("should return no errors on valid row", async () => {
-      const result = await request
+      const res = await request
         .post(`/api/${table._id}/rows/validate`)
         .send({ name: "ivan" })
-        .set(defaultHeaders(appId))
+        .set(config.defaultHeaders())
         .expect('Content-Type', /json/)
         .expect(200)
       
-      expect(result.body.valid).toBe(true)
-      expect(Object.keys(result.body.errors)).toEqual([])
+      expect(res.body.valid).toBe(true)
+      expect(Object.keys(res.body.errors)).toEqual([])
     })
 
     it("should errors on invalid row", async () => {
-      const result = await request
+      const res = await request
         .post(`/api/${table._id}/rows/validate`)
         .send({ name: 1 })
-        .set(defaultHeaders(appId))
+        .set(config.defaultHeaders())
         .expect('Content-Type', /json/)
         .expect(200)
       
-      expect(result.body.valid).toBe(false)
-      expect(Object.keys(result.body.errors)).toEqual(["name"])
+      expect(res.body.valid).toBe(false)
+      expect(Object.keys(res.body.errors)).toEqual(["name"])
 
     })
   })
 
-  describe("enrich row unit test", () => {
+  describe("bulkDelete", () => {
+    it("should be able to delete a bulk set of rows", async () => {
+      const row1 = await config.createRow()
+      const row2 = await config.createRow()
+      const res = await request
+        .post(`/api/${table._id}/rows`)
+        .send({
+          type: "delete",
+          rows: [
+            row1,
+            row2,
+          ]
+        })
+        .set(config.defaultHeaders())
+        .expect('Content-Type', /json/)
+        .expect(200)
+      expect(res.body.length).toEqual(2)
+      await loadRow(row1._id, 404)
+    })
+  })
+
+  describe("search", () => {
+    it("should run a search on the table", async () => {
+      const row = await config.createRow()
+      // add another row that shouldn't be found
+      await config.createRow({
+        ...basicRow(),
+        name: "Other Contact",
+      })
+      const res = await request
+        .post(`/api/${table._id}/rows/search`)
+        .send({
+          query: {
+            name: "Test",
+          },
+          pagination: { pageSize: 25, page: 0 }
+        })
+        .set(config.defaultHeaders())
+        .expect('Content-Type', /json/)
+        .expect(200)
+      expect(res.body.length).toEqual(1)
+      expect(res.body[0]._id).toEqual(row._id)
+    })
+  })
+
+  describe("fetchView", () => {
+    it("should be able to fetch tables contents via 'view'", async () => {
+      const row = await config.createRow()
+      const res = await request
+        .get(`/api/views/all_${table._id}`)
+        .set(config.defaultHeaders())
+        .expect('Content-Type', /json/)
+        .expect(200)
+      expect(res.body.length).toEqual(1)
+      expect(res.body[0]._id).toEqual(row._id)
+    })
+
+    it("should throw an error if view doesn't exist", async () => {
+      await request
+        .get(`/api/views/derp`)
+        .set(config.defaultHeaders())
+        .expect(400)
+    })
+
+    it("should be able to run on a view", async () => {
+      const view = await config.createView()
+      const row = await config.createRow()
+      const res = await request
+        .get(`/api/views/${view._id}`)
+        .set(config.defaultHeaders())
+        .expect('Content-Type', /json/)
+        .expect(200)
+      expect(res.body.length).toEqual(1)
+      expect(res.body[0]._id).toEqual(row._id)
+    })
+  })
+
+  describe("user testing", () => {
+
+  })
+
+  describe("fetchEnrichedRows", () => {
     it("should allow enriching some linked rows", async () => {
-      const table = await createLinkedTable(request, appId)
-      const firstRow = (await createRow({
+      const table = await config.createLinkedTable()
+      const firstRow = await config.createRow({
         name: "Test Contact",
         description: "original description",
         tableId: table._id
-      })).body
-      const secondRow = (await createRow({
+      })
+      const secondRow = await config.createRow({
         name: "Test 2",
         description: "og desc",
-        link: [firstRow._id],
+        link: [{_id: firstRow._id}],
         tableId: table._id,
-      })).body
-      const enriched = await outputProcessing(appId, table, [secondRow])
-      expect(enriched[0].link.length).toBe(1)
-      expect(enriched[0].link[0]).toBe("Test Contact")
+      })
+
+      // test basic enrichment
+      const resBasic = await request
+        .get(`/api/${table._id}/rows/${secondRow._id}`)
+        .set(config.defaultHeaders())
+        .expect('Content-Type', /json/)
+        .expect(200)
+      expect(resBasic.body.link[0]._id).toBe(firstRow._id)
+      expect(resBasic.body.link[0].primaryDisplay).toBe("Test Contact")
+
+      // test full enrichment
+      const resEnriched = await request
+        .get(`/api/${table._id}/${secondRow._id}/enrich`)
+        .set(config.defaultHeaders())
+        .expect('Content-Type', /json/)
+        .expect(200)
+      expect(resEnriched.body.link.length).toBe(1)
+      expect(resEnriched.body.link[0]._id).toBe(firstRow._id)
+      expect(resEnriched.body.link[0].name).toBe("Test Contact")
+      expect(resEnriched.body.link[0].description).toBe("original description")
     })
   })
 
-  it("should allow enriching attachment rows", async () => {
-    const table = await createAttachmentTable(request, appId)
-    const row = (await createRow({
-      name: "test",
-      description: "test",
-      attachment: [{
-        url: "/test/thing",
-      }],
-      tableId: table._id,
-    })).body
-    // the environment needs configured for this
-    env.CLOUD = 1
-    env.SELF_HOSTED = 1
-    const enriched = await outputProcessing(appId, table, [row])
-    expect(enriched[0].attachment[0].url).toBe(`/app-assets/assets/${appId}/test/thing`)
-    // remove env config
-    env.CLOUD = undefined
-    env.SELF_HOSTED = undefined
+  describe("attachments", () => {
+    it("should allow enriching attachment rows", async () => {
+      const table = await config.createAttachmentTable()
+      const row = await config.createRow({
+        name: "test",
+        description: "test",
+        attachment: [{
+          url: "/test/thing",
+        }],
+        tableId: table._id,
+      })
+      // the environment needs configured for this
+      await setup.switchToCloudForFunction(async () => {
+        const enriched = await outputProcessing(config.getAppId(), table, [row])
+        expect(enriched[0].attachment[0].url).toBe(`/app-assets/assets/${config.getAppId()}/test/thing`)
+      })
+    })
   })
 })

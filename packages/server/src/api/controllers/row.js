@@ -7,6 +7,7 @@ const {
   DocumentTypes,
   SEPARATOR,
   ViewNames,
+  generateUserID,
 } = require("../../db/utils")
 const usersController = require("./user")
 const {
@@ -15,6 +16,7 @@ const {
 } = require("../../utilities/rowProcessor")
 const { FieldTypes } = require("../../constants")
 const { isEqual } = require("lodash")
+const { cloneDeep } = require("lodash/fp")
 
 const TABLE_VIEW_BEGINS_WITH = `all${SEPARATOR}${DocumentTypes.TABLE}${SEPARATOR}`
 
@@ -139,7 +141,11 @@ exports.save = async function(ctx) {
   }
 
   if (!inputs._rev && !inputs._id) {
-    inputs._id = generateRowID(inputs.tableId)
+    if (inputs.tableId === ViewNames.USERS) {
+      inputs._id = generateUserID(inputs.email)
+    } else {
+      inputs._id = generateRowID(inputs.tableId)
+    }
   }
 
   // this returns the table and row incase they have been updated
@@ -202,6 +208,11 @@ exports.fetchView = async function(ctx) {
 
   const db = new CouchDB(appId)
   const { calculation, group, field } = ctx.query
+  const designDoc = await db.get("_design/database")
+  const viewInfo = designDoc.views[viewName]
+  if (!viewInfo) {
+    ctx.throw(400, "View does not exist.")
+  }
   const response = await db.query(`database/${viewName}`, {
     include_docs: !calculation,
     group,
@@ -211,8 +222,9 @@ exports.fetchView = async function(ctx) {
     response.rows = response.rows.map(row => row.doc)
     let table
     try {
-      table = await db.get(ctx.params.tableId)
+      table = await db.get(viewInfo.meta.tableId)
     } catch (err) {
+      /* istanbul ignore next */
       table = {
         schema: {},
       }
@@ -244,16 +256,24 @@ exports.fetchView = async function(ctx) {
 
 exports.search = async function(ctx) {
   const appId = ctx.user.appId
-
   const db = new CouchDB(appId)
-
   const {
     query,
     pagination: { pageSize = 10, page },
   } = ctx.request.body
 
-  query.tableId = ctx.params.tableId
+  // make all strings a starts with operation rather than pure equality
+  for (const [key, queryVal] of Object.entries(query)) {
+    if (typeof queryVal === "string") {
+      query[key] = {
+        $gt: queryVal,
+        $lt: `${queryVal}\uffff`,
+      }
+    }
+  }
 
+  // pure equality for table
+  query.tableId = ctx.params.tableId
   const response = await db.find({
     selector: query,
     limit: pageSize,
@@ -313,7 +333,6 @@ exports.destroy = async function(ctx) {
   const row = await db.get(ctx.params.rowId)
   if (row.tableId !== ctx.params.tableId) {
     ctx.throw(400, "Supplied tableId doesn't match the row's tableId")
-    return
   }
   await linkRows.updateLinks({
     appId,
@@ -346,10 +365,15 @@ async function validate({ appId, tableId, row, table }) {
   }
   const errors = {}
   for (let fieldName of Object.keys(table.schema)) {
-    const res = validateJs.single(
-      row[fieldName],
-      table.schema[fieldName].constraints
-    )
+    const constraints = cloneDeep(table.schema[fieldName].constraints)
+    // special case for options, need to always allow unselected (null)
+    if (
+      table.schema[fieldName].type === FieldTypes.OPTIONS &&
+      constraints.inclusion
+    ) {
+      constraints.inclusion.push(null)
+    }
+    const res = validateJs.single(row[fieldName], constraints)
     if (res) errors[fieldName] = res
   }
   return { valid: Object.keys(errors).length === 0, errors }
@@ -360,15 +384,6 @@ exports.fetchEnrichedRow = async function(ctx) {
   const db = new CouchDB(appId)
   const tableId = ctx.params.tableId
   const rowId = ctx.params.rowId
-  if (appId == null || tableId == null || rowId == null) {
-    ctx.status = 400
-    ctx.body = {
-      status: 400,
-      error:
-        "Cannot handle request, URI params have not been successfully prepared.",
-    }
-    return
-  }
   // need table to work out where links go in row
   let [table, row] = await Promise.all([
     db.get(tableId),

@@ -21,6 +21,7 @@ exports.createHomeScreen = () => ({
       active: {},
       selected: {},
     },
+    _transition: "fade",
     type: "div",
     _children: [
       {
@@ -38,55 +39,6 @@ exports.createHomeScreen = () => ({
         type: "h2",
         _instanceName: "Heading",
         _children: [],
-      },
-      {
-        _id: "cbbf41b27c2b44d1abba38bb694880c6a",
-        _component: "@budibase/standard-components/container",
-        _styles: {
-          normal: {
-            display: "flex",
-            "flex-direction": "column",
-            "justify-content": "center",
-            "align-items": "stretch",
-            flex: "1 1 auto",
-            "border-width": "4px",
-            "border-style": "Dashed",
-            "margin-bottom": "32px",
-          },
-          hover: {},
-          active: {},
-          selected: {},
-        },
-        type: "div",
-        _instanceName: "Video Container",
-        _children: [
-          {
-            _id: "c07d752cb3e544b418088fa9be84ba2e4",
-            _component: "@budibase/standard-components/embed",
-            _styles: {
-              normal: {
-                width: "100%",
-                flex: "1 1 auto",
-                opacity: "0",
-                "transition-property": "Opacity",
-                "transition-duration": "1s",
-                "transition-timing-function:": "ease-in",
-              },
-              hover: {
-                "transition-property": "Opacity",
-                "transition-duration": "1s",
-                "transition-timing-function:": "ease-out",
-                opacity: "1",
-              },
-              active: {},
-              selected: {},
-            },
-            embed:
-              '<iframe width="560" height="315" src="https://www.youtube.com/embed/dQw4w9WgXcQ" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>',
-            _instanceName: "Rick Astley Video",
-            _children: [],
-          },
-        ],
       },
     ],
     _instanceName: "Home",
@@ -118,6 +70,7 @@ exports.createLoginScreen = app => ({
       active: {},
       selected: {},
     },
+    _transition: "fade",
     type: "div",
     _children: [
       {

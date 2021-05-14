@@ -37,6 +37,7 @@
     rowSelection: allowEditing ? "multiple" : false,
     rowMultiSelectWithClick: true,
     suppressRowClickSelection: false,
+    suppressFieldDotNotation: true,
     paginationAutoPageSize: true,
     pagination: true,
     enableRangeSelection: true,
@@ -53,7 +54,9 @@
     if (isUsersTable) {
       schema.email.displayFieldName = "Email"
       schema.roleId.displayFieldName = "Role"
-      schema.status.displayFieldName = "Status"
+      if (schema.status) {
+        schema.status.displayFieldName = "Status"
+      }
     }
   }
 
@@ -241,10 +244,6 @@
     font-family: var(--font-sans);
     font-weight: 600;
     color: var(--ink);
-  }
-
-  tbody tr:hover {
-    background: var(--grey-1);
   }
 
   :global(.ag-filter) {

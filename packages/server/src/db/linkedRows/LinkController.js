@@ -2,7 +2,7 @@ const CouchDB = require("../index")
 const { IncludeDocs, getLinkDocuments } = require("./linkUtils")
 const { generateLinkID } = require("../utils")
 const Sentry = require("@sentry/node")
-const { FieldTypes } = require("../../constants")
+const { FieldTypes, RelationshipTypes } = require("../../constants")
 
 /**
  * Creates a new link document structure which can be put to the database. It is important to
@@ -113,6 +113,59 @@ class LinkController {
     })
   }
 
+  /**
+   * Makes sure the passed in table schema contains valid relationship structures.
+   */
+  validateTable(table) {
+    const usedAlready = []
+    for (let schema of Object.values(table.schema)) {
+      if (schema.type !== FieldTypes.LINK) {
+        continue
+      }
+      const unique = schema.tableId + schema.fieldName
+      if (usedAlready.indexOf(unique) !== -1) {
+        throw new Error(
+          "Cannot re-use the linked column name for a linked table."
+        )
+      }
+      usedAlready.push(unique)
+    }
+  }
+
+  /**
+   * Returns whether the two schemas are equal (in the important parts, not a pure equality check)
+   */
+  areSchemasEqual(schema1, schema2) {
+    const compareFields = ["name", "type", "tableId", "fieldName", "autocolumn"]
+    for (let field of compareFields) {
+      if (schema1[field] !== schema2[field]) {
+        return false
+      }
+    }
+    return true
+  }
+
+  /**
+   * Given two the field of this table, and the field of the linked table, this makes sure
+   * the state of relationship type is accurate on both.
+   */
+  handleRelationshipType(field, linkedField) {
+    if (
+      !field.relationshipType ||
+      field.relationshipType === RelationshipTypes.MANY_TO_MANY
+    ) {
+      linkedField.relationshipType = RelationshipTypes.MANY_TO_MANY
+      // make sure by default all are many to many (if not specified)
+      field.relationshipType = RelationshipTypes.MANY_TO_MANY
+    } else if (field.relationshipType === RelationshipTypes.MANY_TO_ONE) {
+      // Ensure that the other side of the relationship is locked to one record
+      linkedField.relationshipType = RelationshipTypes.ONE_TO_MANY
+    } else if (field.relationshipType === RelationshipTypes.ONE_TO_MANY) {
+      linkedField.relationshipType = RelationshipTypes.MANY_TO_ONE
+    }
+    return { field, linkedField }
+  }
+
   // all operations here will assume that the table
   // this operation is related to has linked rows
   /**
@@ -143,8 +196,32 @@ class LinkController {
             ? linkDoc.doc2.rowId
             : linkDoc.doc1.rowId
         })
+
+        // if 1:N, ensure that this ID is not already attached to another record
+        const linkedTable = await this._db.get(field.tableId)
+        const linkedSchema = linkedTable.schema[field.fieldName]
+
         // iterate through the link IDs in the row field, see if any don't exist already
         for (let linkId of rowField) {
+          if (linkedSchema.relationshipType === RelationshipTypes.ONE_TO_MANY) {
+            const links = (
+              await getLinkDocuments({
+                appId: this._appId,
+                tableId: field.tableId,
+                rowId: linkId,
+                includeDocs: IncludeDocs.EXCLUDE,
+              })
+            ).filter(link => link.id !== row._id)
+
+            // The 1 side of 1:N is already related to something else
+            // You must remove the existing relationship
+            if (links.length > 0) {
+              throw new Error(
+                `1:N Relationship Error: Record already linked to another.`
+              )
+            }
+          }
+
           if (linkId && linkId !== "" && linkDocIds.indexOf(linkId) === -1) {
             // first check the doc we're linking to exists
             try {
@@ -246,6 +323,8 @@ class LinkController {
    */
   async tableSaved() {
     const table = await this.table()
+    // validate the table first
+    this.validateTable(table)
     const schema = table.schema
     for (let fieldName of Object.keys(schema)) {
       const field = schema[fieldName]
@@ -259,18 +338,32 @@ class LinkController {
         } catch (err) {
           continue
         }
-        const linkConfig = {
+        const fields = this.handleRelationshipType(field, {
           name: field.fieldName,
           type: FieldTypes.LINK,
           // these are the props of the table that initiated the link
           tableId: table._id,
           fieldName: fieldName,
-        }
+        })
+
+        // update table schema after checking relationship types
+        schema[fieldName] = fields.field
+        const linkedField = fields.linkedField
+
         if (field.autocolumn) {
-          linkConfig.autocolumn = field.autocolumn
+          linkedField.autocolumn = field.autocolumn
+        }
+
+        // check the linked table to make sure we aren't overwriting an existing column
+        const existingSchema = linkedTable.schema[field.fieldName]
+        if (
+          existingSchema != null &&
+          !this.areSchemasEqual(existingSchema, linkedField)
+        ) {
+          throw new Error("Cannot overwrite existing column.")
         }
         // create the link field in the other table
-        linkedTable.schema[field.fieldName] = linkConfig
+        linkedTable.schema[field.fieldName] = linkedField
         const response = await this._db.put(linkedTable)
         // special case for when linking back to self, make sure rev updated
         if (linkedTable._id === table._id) {

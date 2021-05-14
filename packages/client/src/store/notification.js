@@ -1,42 +1,42 @@
-import { writable, derived } from "svelte/store"
-import { generate } from "shortid"
+import { writable } from "svelte/store"
 
 const NOTIFICATION_TIMEOUT = 3000
 
 const createNotificationStore = () => {
-  const _notifications = writable([])
-  let block = false
-
-  const send = (message, type = "default") => {
-    if (block) {
-      return
+  const timeoutIds = new Set()
+  const _notifications = writable([], () => {
+    return () => {
+      // clear all the timers
+      timeoutIds.forEach(timeoutId => {
+        clearTimeout(timeoutId)
+      })
+      _notifications.set([])
     }
-    _notifications.update(state => {
-      return [...state, { id: generate(), type, message }]
-    })
-  }
+  })
+  let block = false
 
   const blockNotifications = (timeout = 1000) => {
     block = true
     setTimeout(() => (block = false), timeout)
   }
 
-  const notifications = derived(_notifications, ($_notifications, set) => {
-    set($_notifications)
-    if ($_notifications.length > 0) {
-      const timeout = setTimeout(() => {
-        _notifications.update(state => {
-          state.shift()
-          return state
-        })
-        set($_notifications)
-      }, NOTIFICATION_TIMEOUT)
-      return () => {
-        clearTimeout(timeout)
-      }
+  const send = (message, type = "default") => {
+    if (block) {
+      return
     }
-  })
-  const { subscribe } = notifications
+    let _id = id()
+    _notifications.update(state => {
+      return [...state, { id: _id, type, message }]
+    })
+    const timeoutId = setTimeout(() => {
+      _notifications.update(state => {
+        return state.filter(({ id }) => id !== _id)
+      })
+    }, NOTIFICATION_TIMEOUT)
+    timeoutIds.add(timeoutId)
+  }
+
+  const { subscribe } = _notifications
 
   return {
     subscribe,
@@ -47,6 +47,15 @@ const createNotificationStore = () => {
     success: msg => send(msg, "success"),
     blockNotifications,
   }
+}
+
+function id() {
+  return (
+    "_" +
+    Math.random()
+      .toString(36)
+      .substr(2, 9)
+  )
 }
 
 export const notificationStore = createNotificationStore()

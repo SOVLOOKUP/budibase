@@ -833,15 +833,15 @@
     svelte-portal "^1.0.0"
     turndown "^7.0.0"
 
-"@budibase/colorpicker@1.0.1":
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/@budibase/colorpicker/-/colorpicker-1.0.1.tgz#940c180e7ebba0cb0756c4c8ef13f5dfab58e810"
-  integrity sha512-+DTHYhU0sTi5RfCyd7AAvMsLFwyF/wgs0owf7KyQU+ZILRW+YsWa7OQMz+hKQfgVAmvzwrNz8ATiBlG3Ac6Asg==
+"@budibase/colorpicker@1.1.2":
+  version "1.1.2"
+  resolved "https://registry.yarnpkg.com/@budibase/colorpicker/-/colorpicker-1.1.2.tgz#f7436924ee746d7be9b2009c2fa193e710c30f89"
+  integrity sha512-2PlZBVkATDqDC4b4Ri8Xi8X3OxhuHOGfmZwtXbZL38lNIeofaQT3Qyc1ECzEY5N+HrdGrWhY9EnliF6QM+LIuA==
 
-"@budibase/svelte-ag-grid@^0.0.16":
-  version "0.0.16"
-  resolved "https://registry.yarnpkg.com/@budibase/svelte-ag-grid/-/svelte-ag-grid-0.0.16.tgz#1b91dc1e27dad034b827dc7b258fa16d3d3bf68f"
-  integrity sha512-Yxnfe03Mo7VhuB4wJSGNoc8jaorH9lertptPt2halef9Z93kkYwdwpldnWVzQT07YdX6soPaVLhupxKrI5Hvtw==
+"@budibase/svelte-ag-grid@^1.0.4":
+  version "1.0.4"
+  resolved "https://registry.yarnpkg.com/@budibase/svelte-ag-grid/-/svelte-ag-grid-1.0.4.tgz#41cceec4bde2c4aea8b9da8f610fe36055c7709f"
+  integrity sha512-JZm6qujxnZpqw7Twbegr6se4sHhyWzN0Cibrk5bVBH32hBgzD6dd33fxwrjHKkWFxjys9wRT+cqYgYVlSt9E3w==
   dependencies:
     ag-grid-community "^24.0.0"
 
@@ -6048,7 +6048,7 @@ rollup-plugin-html@^0.2.1:
     html-minifier "^3.0.2"
     rollup-pluginutils "^1.5.0"
 
-rollup-plugin-livereload@^1.0.0:
+rollup-plugin-livereload@^1.2.0:
   version "1.3.0"
   resolved "https://registry.yarnpkg.com/rollup-plugin-livereload/-/rollup-plugin-livereload-1.3.0.tgz#8da90df13df6502b9d982997d6ac871092f15fdd"
   integrity sha512-abyqXaB21+nFHo+vJULBqfzNx6zXABC19UyvqgDfdoxR/8pFAd041GO+GIUe8ZYC2DbuMUmioh1Lvbk14YLZgw==
@@ -6685,6 +6685,11 @@ supports-color@^7.0.0, supports-color@^7.1.0, supports-color@^7.2.0:
   integrity sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==
   dependencies:
     has-flag "^4.0.0"
+
+svelte-dnd-action@^0.8.9:
+  version "0.8.9"
+  resolved "https://registry.yarnpkg.com/svelte-dnd-action/-/svelte-dnd-action-0.8.9.tgz#90fa211057a5d9e832d5521511f9c1b87242d2ae"
+  integrity sha512-4WaLRvERr2JoX6Lh9GnlEZRzFF5eY3h2q0n5+lS4/+nqqQjTIpCwTrncMf9tJNa+M4AGy43I5aq5F+Ohl/nxLg==
 
 svelte-flatpickr@^2.4.0:
   version "2.4.0"

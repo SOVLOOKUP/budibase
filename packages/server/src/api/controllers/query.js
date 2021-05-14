@@ -61,9 +61,11 @@ async function enrichQueryFields(fields, parameters) {
     if (typeof fields[key] === "object") {
       // enrich nested fields object
       enrichedQuery[key] = await enrichQueryFields(fields[key], parameters)
-    } else {
+    } else if (typeof fields[key] === "string") {
       // enrich string value as normal
       enrichedQuery[key] = await processString(fields[key], parameters)
+    } else {
+      enrichedQuery[key] = fields[key]
     }
   }
 
@@ -108,16 +110,14 @@ exports.preview = async function(ctx) {
 
   if (!Integration) {
     ctx.throw(400, "Integration type does not exist.")
-    return
   }
 
   const { fields, parameters, queryVerb } = ctx.request.body
 
   const enrichedQuery = await enrichQueryFields(fields, parameters)
 
-  const rows = formatResponse(
-    await new Integration(datasource.config)[queryVerb](enrichedQuery)
-  )
+  const integration = new Integration(datasource.config)
+  const rows = formatResponse(await integration[queryVerb](enrichedQuery))
 
   // get all the potential fields in the schema
   const keys = rows.flatMap(Object.keys)
@@ -125,6 +125,10 @@ exports.preview = async function(ctx) {
   ctx.body = {
     rows,
     schemaFields: [...new Set(keys)],
+  }
+  // cleanup
+  if (integration.end) {
+    integration.end()
   }
 }
 
@@ -138,7 +142,6 @@ exports.execute = async function(ctx) {
 
   if (!Integration) {
     ctx.throw(400, "Integration type does not exist.")
-    return
   }
 
   const enrichedQuery = await enrichQueryFields(
@@ -146,10 +149,13 @@ exports.execute = async function(ctx) {
     ctx.request.body.parameters
   )
 
+  const integration = new Integration(datasource.config)
   // call the relevant CRUD method on the integration class
-  ctx.body = formatResponse(
-    await new Integration(datasource.config)[query.queryVerb](enrichedQuery)
-  )
+  ctx.body = formatResponse(await integration[query.queryVerb](enrichedQuery))
+  // cleanup
+  if (integration.end) {
+    integration.end()
+  }
 }
 
 exports.destroy = async function(ctx) {
